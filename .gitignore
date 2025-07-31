@@ -1,0 +1,11 @@
+# Ignore node_modules folder
+node_modules/
+
+# Ignore environment variables
+.env
+
+# Optional: MacOS & editor junk
+.DS_Store
+.idea
+.vscode
+*.log
