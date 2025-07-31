@@ -1,6 +1,12 @@
-// routes/payments.js
+const express = require('express');
+const router = express.Router();
+const Stripe = require('stripe');
+
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+
+// ✅ Create checkout session
 router.post('/create-checkout-session', async (req, res) => {
-  const { amount } = req.body; // amount in cents
+  const { amount } = req.body;
   try {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -17,8 +23,8 @@ router.post('/create-checkout-session', async (req, res) => {
           quantity: 1,
         },
       ],
-      success_url: 'https://yourapp.com/success', // Replace with your frontend success URL
-      cancel_url: 'https://yourapp.com/cancel',   // Replace with your frontend cancel URL
+      success_url: 'https://yourapp.com/success', // <-- replace!
+      cancel_url: 'https://yourapp.com/cancel',   // <-- replace!
     });
 
     res.json({ url: session.url });
@@ -27,3 +33,21 @@ router.post('/create-checkout-session', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// ✅ Also keep your create-payment-intent route if needed
+router.post('/create-payment-intent', async (req, res) => {
+  const { amount } = req.body;
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount,
+      currency: 'usd',
+      payment_method_types: ['card'],
+    });
+    res.json({ clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+    console.error('Error creating payment intent:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+module.exports = router;
