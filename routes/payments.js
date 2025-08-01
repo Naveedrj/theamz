@@ -5,7 +5,7 @@ const bodyParser = require('body-parser');
 const router = express.Router();
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-// ✅ In-memory DB (replace with real DB later)
+// ✅ In-memory DB (replace with real DB in prod)
 const paymentsDb = {};
 
 // ✅ Create checkout session
@@ -50,7 +50,7 @@ router.get('/check-status', (req, res) => {
 
 // ✅ Stripe webhook
 router.post('/webhook',
-  bodyParser.raw({ type: 'application/json' }), // raw parser only for this route
+  bodyParser.raw({ type: 'application/json' }), // raw parser required for Stripe
   (req, res) => {
     const sig = req.headers['stripe-signature'];
 
@@ -66,14 +66,39 @@ router.post('/webhook',
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // Handle payment success
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
-      console.log('✅ Payment successful for session:', session.id);
+    const session = event.data.object;
 
-      if (paymentsDb[session.id]) {
-        paymentsDb[session.id].status = 'paid';
-      }
+    switch (event.type) {
+      case 'checkout.session.completed':
+        console.log('✅ Payment successful for session:', session.id);
+        if (paymentsDb[session.id]) {
+          paymentsDb[session.id].status = 'paid';
+        }
+        break;
+
+      case 'checkout.session.expired':
+        console.log('❌ Payment expired / cancelled for session:', session.id);
+        if (paymentsDb[session.id]) {
+          paymentsDb[session.id].status = 'cancelled';
+        }
+        break;
+
+      case 'checkout.session.async_payment_succeeded':
+        console.log('✅ Async payment succeeded for session:', session.id);
+        if (paymentsDb[session.id]) {
+          paymentsDb[session.id].status = 'paid';
+        }
+        break;
+
+      case 'checkout.session.async_payment_failed':
+        console.log('❌ Async payment failed for session:', session.id);
+        if (paymentsDb[session.id]) {
+          paymentsDb[session.id].status = 'failed';
+        }
+        break;
+
+      default:
+        console.log(`ℹ️ Received unknown event: ${event.type}`);
     }
 
     res.status(200).send('Received');
