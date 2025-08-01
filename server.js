@@ -4,18 +4,20 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const app = express();
-app.use(express.json());
 
-// ✅ Add CORS so web frontend can call
+// ✅ Allow CORS so Flutter or web frontend can call
 app.use(cors());
 
-// ✅ Import your routes
+// ✅ JSON parser for normal API routes
+app.use(express.json());
+
+// ✅ Import your payments routes
 const paymentRoutes = require('./routes/payments');
 
 // ✅ Mount under /api/payments
 app.use('/api/payments', paymentRoutes);
 
-// ✅ Root route just to test server
+// ✅ Root route just to test server is running
 app.get('/', (req, res) => {
   res.send('Stripe backend is running!');
 });
@@ -23,4 +25,3 @@ app.get('/', (req, res) => {
 // ✅ Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
