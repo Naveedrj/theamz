@@ -1,28 +1,33 @@
+// app.js
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
-// ✅ Load environment variables from .env
 dotenv.config();
 
 const app = express();
 
-// ✅ Allow CORS so Flutter app, web frontend, or mobile can call your backend
+// ✅ Allow CORS for frontend
 app.use(cors());
 
-// ✅ Parse JSON bodies (for API routes)
+// ✅ Import payment routes
+const paymentRoutes = require('./routes/payments');
+
+// ✅ Use raw body *only* for webhook
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }), paymentRoutes);
+
+// ✅ Use JSON parser for all other routes
 app.use(express.json());
 
-// ✅ Import and mount your Stripe payment routes
-const paymentRoutes = require('./routes/payments');
+// ✅ Mount other payment routes (create-checkout-session, check-status)
 app.use('/api/payments', paymentRoutes);
 
-// ✅ Health check / root route
+// ✅ Health check route
 app.get('/', (req, res) => {
   res.send('✅ Stripe backend is running!');
 });
 
-// ✅ Start server on specified port (default 3000 if not in .env)
+// ✅ Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);

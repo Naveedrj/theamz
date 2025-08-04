@@ -1,20 +1,19 @@
+// routes/payments.js
 const express = require('express');
 const Stripe = require('stripe');
-const bodyParser = require('body-parser');
 
 const router = express.Router();
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-// ✅ Simple in-memory store — replace with real DB in production!
+// ✅ Simple in-memory store (replace with DB later)
 const paymentsDb = {};
 
 /**
- * ✅ Create Checkout Session
- * POST /api/payments/create-checkout-session
+ * Create Checkout Session
  */
 router.post('/create-checkout-session', async (req, res) => {
   try {
-    const amount = req.body.amount || 1000; // $10 default
+    const amount = req.body.amount || 1000;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -31,7 +30,6 @@ router.post('/create-checkout-session', async (req, res) => {
       cancel_url: `https://theamz.com/payment-cancel`,
     });
 
-    // Store initial status
     paymentsDb[session.id] = { status: 'pending' };
     console.log('✅ Created checkout session:', session.id);
 
@@ -43,8 +41,7 @@ router.post('/create-checkout-session', async (req, res) => {
 });
 
 /**
- * ✅ Check payment status
- * GET /api/payments/check-status?sessionId=cs_test_...
+ * Check payment status
  */
 router.get('/check-status', (req, res) => {
   const sessionId = req.query.sessionId;
@@ -55,56 +52,51 @@ router.get('/check-status', (req, res) => {
 });
 
 /**
- * ✅ Stripe webhook to listen for payment events
- * POST /api/payments/webhook
+ * Stripe webhook
  */
-router.post(
-  '/webhook',
-  bodyParser.raw({ type: 'application/json' }), // required: raw body for Stripe signature
-  (req, res) => {
-    const sig = req.headers['stripe-signature'];
+router.post('/webhook', (req, res) => {
+  const sig = req.headers['stripe-signature'];
 
-    let event;
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-    } catch (err) {
-      console.error('❌ Webhook signature verification failed:', err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    const session = event.data.object;
-
-    switch (event.type) {
-      case 'checkout.session.completed':
-        console.log('✅ Payment successful for session:', session.id);
-        if (paymentsDb[session.id]) paymentsDb[session.id].status = 'paid';
-        break;
-
-      case 'checkout.session.expired':
-        console.log('❌ Payment expired/cancelled for session:', session.id);
-        if (paymentsDb[session.id]) paymentsDb[session.id].status = 'cancelled';
-        break;
-
-      case 'checkout.session.async_payment_succeeded':
-        console.log('✅ Async payment succeeded for session:', session.id);
-        if (paymentsDb[session.id]) paymentsDb[session.id].status = 'paid';
-        break;
-
-      case 'checkout.session.async_payment_failed':
-        console.log('❌ Async payment failed for session:', session.id);
-        if (paymentsDb[session.id]) paymentsDb[session.id].status = 'failed';
-        break;
-
-      default:
-        console.log(`ℹ️ Received unhandled event type: ${event.type}`);
-    }
-
-    res.status(200).send('Received');
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(
+      req.body,  // this will be the raw body because of express.raw in app.js
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+  } catch (err) {
+    console.error('❌ Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
   }
-);
+
+  const session = event.data.object;
+
+  switch (event.type) {
+    case 'checkout.session.completed':
+      console.log('✅ Payment successful for session:', session.id);
+      if (paymentsDb[session.id]) paymentsDb[session.id].status = 'paid';
+      break;
+
+    case 'checkout.session.expired':
+      console.log('❌ Payment expired/cancelled for session:', session.id);
+      if (paymentsDb[session.id]) paymentsDb[session.id].status = 'cancelled';
+      break;
+
+    case 'checkout.session.async_payment_succeeded':
+      console.log('✅ Async payment succeeded for session:', session.id);
+      if (paymentsDb[session.id]) paymentsDb[session.id].status = 'paid';
+      break;
+
+    case 'checkout.session.async_payment_failed':
+      console.log('❌ Async payment failed for session:', session.id);
+      if (paymentsDb[session.id]) paymentsDb[session.id].status = 'failed';
+      break;
+
+    default:
+      console.log(`ℹ️ Received unhandled event type: ${event.type}`);
+  }
+
+  res.status(200).send('Received');
+});
 
 module.exports = router;
