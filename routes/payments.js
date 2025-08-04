@@ -1,54 +1,76 @@
+// routes/payments.js
 const express = require('express');
 const Stripe = require('stripe');
 const router = express.Router();
+
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-// replace with your real product & price IDs from Stripe
-const PRICE_ID = 'price_1RsQvXRp2tKidYl8BfIbke76';
-
-// Simple in-memory DB to test (replace with Firestore in production)
+// Simple in-memory store (replace with DB in prod)
 const subscriptionsDb = {};
 
 /**
- * Create checkout session for subscription with trial
+ * ✅ Create subscription checkout session with 15-day trial
+ * POST /api/payments/create-subscription-session
  */
 router.post('/create-subscription-session', async (req, res) => {
   try {
-    const { userId } = req.body; // pass userId from Flutter
+    // You can pass userId from frontend & create a Stripe customer if needed
+    const { userId } = req.body;
+
+    const priceId = process.env.STRIPE_PRICE_ID;
+    if (!priceId) return res.status(500).send('Missing STRIPE_PRICE_ID in .env');
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{
-        price: PRICE_ID,
+        price: priceId,
         quantity: 1,
       }],
       subscription_data: {
         trial_period_days: 15,
-        metadata: { userId }, // save userId to identify later
+        metadata: { userId }
       },
       success_url: `https://theamz.com/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `https://theamz.com/payment-cancel`,
     });
 
-    subscriptionsDb[session.id] = { status: 'pending', userId };
-    console.log('✅ Created subscription checkout session:', session.id);
+    subscriptionsDb[session.id] = { status: 'pending' };
+    console.log('✅ Created subscription session:', session.id);
 
     res.json({ url: session.url, sessionId: session.id });
   } catch (err) {
     console.error('❌ Failed to create subscription session:', err);
-    res.status(500).send('Internal Server Error');
+    res.status(500).send(`Internal Server Error: ${err.message}`);
   }
 });
 
 /**
- * Webhook to update subscription status
+ * ✅ Check subscription status
+ * GET /api/payments/check-status?sessionId=...
  */
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+router.get('/check-status', (req, res) => {
+  const sessionId = req.query.sessionId;
+  if (!sessionId || !subscriptionsDb[sessionId]) {
+    return res.status(404).json({ status: 'not_found' });
+  }
+  res.json({ status: subscriptionsDb[sessionId].status });
+});
+
+/**
+ * ✅ Stripe webhook to handle subscription events
+ * POST /api/payments/webhook
+ */
+router.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
+
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
   } catch (err) {
     console.error('❌ Webhook verification failed:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -56,20 +78,27 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
   const session = event.data.object;
 
-  if (event.type === 'checkout.session.completed') {
-    console.log('✅ Subscription checkout completed:', session.id);
-    const userId = session.metadata.userId;
-    // Save in Firestore: userId → trial_start_date, subscriptionId etc.
-  }
+  switch (event.type) {
+    case 'checkout.session.completed':
+      console.log('✅ Subscription checkout completed:', session.id);
+      if (subscriptionsDb[session.id]) subscriptionsDb[session.id].status = 'paid';
+      break;
 
-  if (event.type === 'invoice.payment_succeeded') {
-    console.log('✅ Payment succeeded for subscription');
-    // Update Firestore: set subscription_active=true
-  }
+    case 'checkout.session.expired':
+      console.log('❌ Checkout session expired:', session.id);
+      if (subscriptionsDb[session.id]) subscriptionsDb[session.id].status = 'cancelled';
+      break;
 
-  if (event.type === 'invoice.payment_failed') {
-    console.log('❌ Payment failed after trial');
-    // Update Firestore: subscription_active=false, etc.
+    case 'invoice.payment_succeeded':
+      console.log('✅ Subscription payment succeeded (invoice):', session.id);
+      break;
+
+    case 'invoice.payment_failed':
+      console.log('❌ Subscription payment failed (invoice):', session.id);
+      break;
+
+    default:
+      console.log(`ℹ️ Unhandled event type: ${event.type}`);
   }
 
   res.status(200).send('Received');
