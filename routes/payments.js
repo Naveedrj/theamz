@@ -18,7 +18,7 @@ router.post('/create-subscription-session', async (req, res) => {
     const { userId } = req.body;
 
     const priceId = process.env.STRIPE_PRICE_ID;
-    if (!priceId) return res.status(500).send('Missing STRIPE_PRICE_ID in .env');
+    if (!priceId) return res.status(500).json({ error: 'Missing STRIPE_PRICE_ID in .env' });
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
