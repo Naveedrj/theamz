@@ -2,10 +2,9 @@ const express = require('express');
 const Stripe = require('stripe');
 const router = express.Router();
 
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
-const { subscriptionsDb } = require('./payments');
-
+// Must use express.raw here
 router.post('/', express.raw({ type: 'application/json' }), (req, res) => {
+  const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
   const sig = req.headers['stripe-signature'];
   let event;
 
@@ -25,12 +24,10 @@ router.post('/', express.raw({ type: 'application/json' }), (req, res) => {
   switch (event.type) {
     case 'checkout.session.completed':
       console.log('✅ Subscription checkout completed:', session.id);
-      if (subscriptionsDb[session.id]) subscriptionsDb[session.id].status = 'paid';
       break;
 
     case 'checkout.session.expired':
       console.log('❌ Checkout session expired:', session.id);
-      if (subscriptionsDb[session.id]) subscriptionsDb[session.id].status = 'cancelled';
       break;
 
     case 'invoice.payment_succeeded':
