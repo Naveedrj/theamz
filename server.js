@@ -11,13 +11,12 @@ const app = express();
 // CORS
 app.use(cors());
 
-// 🔥 Webhook route MUST come BEFORE express.json()
+// ✅ Register webhook BEFORE express.json()
 app.use('/api/payments/webhook', webhookRouter);
 
-// JSON body parser for normal API routes
+// ✅ Now apply body parser
 app.use(express.json());
 
-// Normal API routes
 app.use('/api/payments', paymentsRouter);
 
 // Health check
