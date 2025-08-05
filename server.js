@@ -3,19 +3,20 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 dotenv.config();
 
+const { paymentsRouter } = require('./routes/payments');
+const webhookRouter = require('./routes/webhook');
+
 const app = express();
 
-// Allow CORS
+// CORS
 app.use(cors());
 
-// Use raw body *only* for webhook
-app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), require('./routes/payments'));
+// ✅ Webhook uses raw body (must be placed before express.json)
+app.use('/api/payments/webhook', webhookRouter);
 
-// Parse JSON body for all other routes
+// ✅ All other routes use normal JSON
 app.use(express.json());
-
-// Mount other payment routes
-app.use('/api/payments', require('./routes/payments'));
+app.use('/api/payments', paymentsRouter);
 
 // Health check
 app.get('/', (req, res) => {
