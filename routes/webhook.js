@@ -2,9 +2,15 @@ const express = require('express');
 const Stripe = require('stripe');
 const router = express.Router();
 
-// Must use express.raw here
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+
+// Import the same in-memory DB to sync status
+const { subscriptionsDb } = require('./payments'); // Adjust path if needed
+
+/**
+ * ✅ Stripe webhook endpoint
+ */
 router.post('/', express.raw({ type: 'application/json' }), (req, res) => {
-  const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
   const sig = req.headers['stripe-signature'];
   let event;
 
@@ -24,18 +30,28 @@ router.post('/', express.raw({ type: 'application/json' }), (req, res) => {
   switch (event.type) {
     case 'checkout.session.completed':
       console.log('✅ Subscription checkout completed:', session.id);
+      if (subscriptionsDb[session.id]) {
+        subscriptionsDb[session.id].status = 'active';
+      }
       break;
 
     case 'checkout.session.expired':
       console.log('❌ Checkout session expired:', session.id);
+      if (subscriptionsDb[session.id]) {
+        subscriptionsDb[session.id].status = 'cancelled';
+      }
       break;
 
     case 'invoice.payment_succeeded':
       console.log('✅ Subscription payment succeeded (invoice):', session.id);
+      // Optional: further logic
       break;
 
     case 'invoice.payment_failed':
       console.log('❌ Subscription payment failed (invoice):', session.id);
+      if (subscriptionsDb[session.id]) {
+        subscriptionsDb[session.id].status = 'failed';
+      }
       break;
 
     default:
