@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -9,19 +10,19 @@ const subscriptionStatusRouter = require('./routes/subscription-status');
 
 const app = express();
 
-// CORS
+// Enable CORS
 app.use(cors());
 
-// ✅ Register webhook BEFORE express.json()
+// ✅ Stripe webhook BEFORE JSON parsing
 app.use('/api/payments/webhook', webhookRouter);
 
-// ✅ Now apply body parser
+// ✅ Now enable JSON parsing for other routes
 app.use(express.json());
 
 // Payments routes
 app.use('/api/payments', paymentsRouter);
 
-// ✅ Subscription status route (matches Flutter call)
+// Subscription status endpoint
 app.use('/api/payments/subscription-status', subscriptionStatusRouter);
 
 // Health check
@@ -29,6 +30,7 @@ app.get('/', (req, res) => {
   res.send('✅ Stripe backend is running!');
 });
 
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
