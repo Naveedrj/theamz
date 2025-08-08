@@ -7,30 +7,29 @@ dotenv.config();
 const { paymentsRouter } = require('./routes/payments');
 const webhookRouter = require('./routes/webhook');
 const subscriptionStatusRouter = require('./routes/subscription-status');
+const decrementResponseRouter = require('./routes/decrement-response'); // add this
 
 const app = express();
 
-// Enable CORS
 app.use(cors());
 
-// ✅ Stripe webhook BEFORE JSON parsing
+// Stripe webhook BEFORE JSON parsing
 app.use('/api/payments/webhook', webhookRouter);
 
-// ✅ Now enable JSON parsing for other routes
+// Enable JSON parsing for other routes
 app.use(express.json());
 
-// Payments routes
+// Mount your decrement-response route here
+app.use('/api/decrement-response', decrementResponseRouter);
+
 app.use('/api/payments', paymentsRouter);
 
-// Subscription status endpoint
 app.use('/api/payments/subscription-status', subscriptionStatusRouter);
 
-// Health check
 app.get('/', (req, res) => {
   res.send('✅ Stripe backend is running!');
 });
 
-// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
