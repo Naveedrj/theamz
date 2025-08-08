@@ -5,6 +5,7 @@ dotenv.config();
 
 const { paymentsRouter } = require('./routes/payments');
 const webhookRouter = require('./routes/webhook');
+const subscriptionStatusRouter = require('./routes/subscription-status');
 
 const app = express();
 
@@ -14,12 +15,14 @@ app.use(cors());
 // ✅ Register webhook BEFORE express.json()
 app.use('/api/payments/webhook', webhookRouter);
 
-app.use('/subscription-status', require('./routes/subscriptionStatus'));
-
 // ✅ Now apply body parser
 app.use(express.json());
 
+// Payments routes
 app.use('/api/payments', paymentsRouter);
+
+// ✅ Subscription status route (matches Flutter call)
+app.use('/api/payments/subscription-status', subscriptionStatusRouter);
 
 // Health check
 app.get('/', (req, res) => {
