@@ -14,6 +14,8 @@ app.use(cors());
 // ✅ Register webhook BEFORE express.json()
 app.use('/api/payments/webhook', webhookRouter);
 
+app.use('/subscription-status', require('./routes/subscriptionStatus'));
+
 // ✅ Now apply body parser
 app.use(express.json());
 
