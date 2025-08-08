@@ -4,6 +4,9 @@ node_modules/
 # Ignore environment variables
 .env
 
+# Ignore Firebase service account JSON
+theamzresearch-3dbf0-firebase-adminsdk-fbsvc-b1f315d4fb.json
+
 # Optional: MacOS & editor junk
 .DS_Store
 .idea
