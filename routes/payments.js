@@ -7,8 +7,9 @@ const router = express.Router();
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 /**
- * ✅ Create subscription checkout session with 15-day trial
- * Writes Firestore record immediately so UI can reflect "trial started"
+ * Create subscription checkout session with 15-day trial
+ * DO NOT write Firestore record immediately here.
+ * Trial is marked active only via webhook after payment info entered.
  */
 router.post('/create-subscription-session', async (req, res) => {
   try {
@@ -22,31 +23,22 @@ router.post('/create-subscription-session', async (req, res) => {
       return res.status(400).json({ error: 'Missing userId in request body' });
     }
 
-    // Create Checkout session with trial
+    // Create Checkout session with trial configured on Stripe
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: {
         trial_period_days: 15,
-        metadata: { userId }, // store userId for webhook
+        metadata: { userId }, // Store userId for webhook use
       },
       success_url: `https://theamz.com/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `https://theamz.com/payment-cancel`,
-      metadata: { userId } // duplicate on session for webhook
+      metadata: { userId } // Duplicate on session for webhook
     });
 
-    // Immediately store trial start in Firestore so UI updates instantly
-    await db.collection('users').doc(userId).set({
-      free_trial_active: true,
-      subscription_active: false,
-      status: 'trial', // directly mark as trial
-      trial_start_date: new Date(),
-      subscription_start_date: null,
-      responses_remaining: 200, // 🎯 give trial quota immediately
-      stripe_session_id: session.id,
-      stripe_subscription_id: null
-    }, { merge: true });
+    // IMPORTANT: Do NOT write trial status to Firestore here!
+    // Wait for webhook confirmation after user completes checkout.
 
     console.log('✅ Created subscription session for user:', userId, '| Session:', session.id);
     res.json({ url: session.url, sessionId: session.id });
@@ -57,8 +49,8 @@ router.post('/create-subscription-session', async (req, res) => {
 });
 
 /**
- * ✅ Check subscription status from Firestore
- * This is the endpoint Flutter will call to get latest status
+ * Check subscription status from Firestore
+ * Flutter client polls this to detect trial/subscription activation.
  */
 router.get('/check-status', async (req, res) => {
   try {
